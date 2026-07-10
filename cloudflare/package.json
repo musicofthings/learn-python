@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare-assets": "bash scripts/prepare-assets.sh",
-    "dev": "bash scripts/prepare-assets.sh && wrangler dev",
-    "deploy": "bash scripts/prepare-assets.sh && wrangler deploy",
+    "prepare-assets": "node scripts/prepare-assets.js",
+    "dev": "node scripts/prepare-assets.js && wrangler dev",
+    "deploy": "node scripts/prepare-assets.js && wrangler deploy",
     "kv:create": "wrangler kv namespace create HELIX_CACHE",
     "kv:create-preview": "wrangler kv namespace create HELIX_CACHE --preview"
   },
