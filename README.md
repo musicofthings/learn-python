@@ -48,6 +48,15 @@ python3 start.py
    - QSAR & molecular ML
    - CRISPR & genomics ops
 
+## Dynamic Q&A (AI / OpenRouter)
+
+1. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Run the app, open **AI settings**, paste the key
+3. Default provider is OpenRouter (`openai/gpt-4o-mini`)
+4. Click **Generate fresh** on quiz/flashcards/microlearning for unique live items
+
+Recent prompts are stored locally so regenerations avoid repeats.
+
 ## Dynamic Q&A (AI)
 
 Questions are **generated on demand**:

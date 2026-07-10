@@ -149,17 +149,24 @@ const HelixGenerator = (() => {
   }
 
   function quiz(domain, n = 10, seed) {
-    const questions = fromStaticBank(domain, n, seed || String(Date.now()));
-    // pad if needed
-    while (questions.length < n && questions.length) {
-      questions.push({ ...questions[questions.length % Math.max(questions.length, 1)] });
+    const raw = fromStaticBank(domain, Math.max(n * 2, n), seed || String(Date.now()));
+    const seen = new Set();
+    const questions = [];
+    for (const q of raw) {
+      const k = (q.question || "").trim().toLowerCase();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      questions.push(q);
+      if (questions.length >= n) break;
     }
     return {
       domain,
       source: "local",
       seed: seed || null,
-      questions: questions.slice(0, n),
-      warning: "Generated in-browser (API offline). Start ./start.sh for AI generation.",
+      questions,
+      warning: HelixAPI && HelixAPI.hasLiveKey && HelixAPI.hasLiveKey()
+        ? undefined
+        : "Local templates — add an OpenRouter key in AI settings for unique live questions.",
     };
   }
 
@@ -198,12 +205,12 @@ const HelixGenerator = (() => {
     (topic.lesson || []).forEach((section) => {
       bank.push({
         topic: topic.name,
-        question: `Regarding ${topic.name}: key takeaway about "${section.heading}"?`,
+        question: `In ${topic.name}, why does "${section.heading}" matter in practice?`,
         choices: [
-          section.body.split(".")[0] + ".",
-          "It only applies to organic solvent colorimetry.",
+          `A core idea under "${section.heading}" is central to sound CompBio work in this topic.`,
+          "It is only relevant for organic solvent colorimetry.",
           "It replaces the need for any experimental assay forever.",
-          "It means FASTA headers must contain emoji.",
+          "It only changes FASTA header fonts.",
         ],
         answer: 0,
         explanation: section.body,

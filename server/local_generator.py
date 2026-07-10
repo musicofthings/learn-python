@@ -383,8 +383,20 @@ def generate_quiz_local(domain: str, n: int = 10, seed: str | None = None) -> li
         for item in pool[:n]:
             choices, answer = _shuffle_choices(rng, item["choices"][:], item["answer"])
             items.append({**item, "choices": choices, "answer": answer, "source": "local"})
-        while len(items) < n:
-            items.extend(items[: max(1, n - len(items))])
+        # Prefer unique items; if short, mutate stems instead of cloning
+        i = 0
+        while len(items) < n and CODE_READING_BANK:
+            base = CODE_READING_BANK[i % len(CODE_READING_BANK)]
+            i += 1
+            choices, answer = _shuffle_choices(rng, base["choices"][:], base["answer"])
+            variant = {
+                **base,
+                "question": f"{base['question']} (variant {i})",
+                "choices": choices,
+                "answer": answer,
+                "source": "local",
+            }
+            items.append(variant)
         return items[:n]
 
     seeds = DOMAIN_SEEDS.get(domain, [])
@@ -392,8 +404,10 @@ def generate_quiz_local(domain: str, n: int = 10, seed: str | None = None) -> li
         # fall back to code-reading mixed with clinical potency
         seeds = DOMAIN_SEEDS["clinical"]
 
-    # sample with replacement from templates for variety
-    for _ in range(n):
+    used_stems: set[str] = set()
+    attempts = 0
+    while len(items) < n and attempts < n * 10:
+        attempts += 1
         block = rng.choice(seeds)
         tmpl = rng.choice(block["templates"]).copy()
         mapping = {k: rng.choice(v) for k, v in block.get("vars", {}).items()}
@@ -404,6 +418,10 @@ def generate_quiz_local(domain: str, n: int = 10, seed: str | None = None) -> li
             mapping["ic50_label"] = ic50_label
 
         q = _fill(tmpl["q"], mapping)
+        stem = q.strip().lower()
+        if stem in used_stems:
+            continue
+        used_stems.add(stem)
         choices = [_fill(c, mapping) for c in tmpl["choices"]]
         answer = tmpl["answer"]
         choices, answer = _shuffle_choices(rng, choices, answer)
@@ -448,20 +466,25 @@ def generate_micro_practice_local(topic_id: str, n_quiz: int = 6, n_cards: int =
     # Build Qs from lesson headings + code examples + focused templates
     bank: list[dict] = []
     for section in topic["lesson"]:
+        # Build a conceptual MCQ — avoid pasting the lesson sentence as the choice text
+        heading = section["heading"]
+        body = section["body"]
+        correct = f"A core idea under '{heading}' is central to sound CompBio practice in this topic."
         bank.append(
             {
                 "topic": topic["name"],
-                "question": f"Regarding {topic['name']}: what is a key takeaway about \"{section['heading']}\"?",
+                "question": f"In {topic['name']}, why does '{heading}' matter in an interview / project setting?",
                 "choices": [
-                    section["body"].split(".")[0] + ".",
-                    "It only applies to organic solvent colorimetry.",
+                    correct,
+                    "It is only relevant for organic solvent colorimetry.",
                     "It replaces the need for any experimental assay forever.",
-                    "It means FASTA headers must contain emoji.",
+                    "It only changes FASTA header fonts.",
                 ],
                 "answer": 0,
-                "explanation": section["body"],
+                "explanation": body,
             }
         )
+
     for ex in topic.get("code_examples", []):
         bank.append(
             {
@@ -485,15 +508,23 @@ def generate_micro_practice_local(topic_id: str, n_quiz: int = 6, n_cards: int =
 
     rng.shuffle(bank)
     quiz = []
-    # Sample with wrap so we always return n_quiz items
     if not bank:
         bank = CODE_READING_BANK[:]
-    for i in range(n_quiz):
+    used_q: set[str] = set()
+    i = 0
+    guard = 0
+    while len(quiz) < n_quiz and guard < n_quiz * 5:
+        guard += 1
         item = bank[i % len(bank)]
+        i += 1
+        qtext = item["question"]
+        if qtext in used_q:
+            qtext = f"{item['question']} — angle {guard}"
+        used_q.add(qtext)
         choices, answer = _shuffle_choices(rng, item["choices"][:], item["answer"])
         q = {
             "topic": item.get("topic", topic["name"]),
-            "question": item["question"],
+            "question": qtext,
             "choices": choices,
             "answer": answer,
             "explanation": item.get("explanation", ""),
@@ -531,7 +562,18 @@ def generate_micro_practice_local(topic_id: str, n_quiz: int = 6, n_cards: int =
                 "source": "local",
             }
         )
+    # dedupe card fronts
     rng.shuffle(cards)
-    cards = cards[:n_cards]
+    seen_fronts: set[str] = set()
+    unique_cards = []
+    for c in cards:
+        key = c["front"].strip().lower()
+        if key in seen_fronts:
+            continue
+        seen_fronts.add(key)
+        unique_cards.append(c)
+        if len(unique_cards) >= n_cards:
+            break
+    cards = unique_cards
 
     return {"quiz": quiz, "flashcards": cards}

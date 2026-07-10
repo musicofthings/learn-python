@@ -58,6 +58,7 @@ class GenerateQuizRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
+    exclude: list[str] = Field(default_factory=list, description="Recent question texts to avoid")
 
 
 class GenerateFlashRequest(BaseModel):
@@ -68,6 +69,7 @@ class GenerateFlashRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
+    exclude: list[str] = Field(default_factory=list)
 
 
 class GenerateMicroRequest(BaseModel):
@@ -79,6 +81,7 @@ class GenerateMicroRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
+    exclude: list[str] = Field(default_factory=list)
 
 
 def _resolve_key(api_key: Optional[str], header_key: Optional[str]) -> str:
@@ -99,8 +102,9 @@ def health() -> dict[str, Any]:
         "ok": True,
         "service": "helixbench",
         "llm_key_configured": bool(os.getenv("LLM_API_KEY")),
-        "default_model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
-        "default_base_url": os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+        "default_model": os.getenv("LLM_MODEL", "openai/gpt-4o-mini"),
+        "default_base_url": os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+        "provider": "openrouter",
         "micro_topics": len(MICRO_TOPICS),
     }
 
@@ -167,6 +171,7 @@ async def api_generate_quiz(
                 api_key=key,
                 base_url=body.base_url or os.getenv("LLM_BASE_URL"),
                 model=body.model or os.getenv("LLM_MODEL"),
+                exclude=body.exclude,
             )
             source = "ai"
         except LLMError as exc:
@@ -213,6 +218,7 @@ async def api_generate_flashcards(
                 api_key=key,
                 base_url=body.base_url or os.getenv("LLM_BASE_URL"),
                 model=body.model or os.getenv("LLM_MODEL"),
+                exclude=body.exclude,
             )
             source = "ai"
         except LLMError as exc:
@@ -260,6 +266,7 @@ async def api_generate_micro(
                 api_key=key,
                 base_url=body.base_url or os.getenv("LLM_BASE_URL"),
                 model=body.model or os.getenv("LLM_MODEL"),
+                exclude=body.exclude,
             )
             source = "ai"
         except LLMError as exc:
@@ -292,6 +299,37 @@ async def api_generate_micro(
         "quiz": practice.get("quiz", []),
         "flashcards": practice.get("flashcards", []),
         "warning": warning,
+    }
+
+
+
+@app.get("/api/providers")
+def providers() -> dict[str, Any]:
+    return {
+        "default": "openrouter",
+        "providers": [
+            {
+                "id": "openrouter",
+                "name": "OpenRouter",
+                "base_url": "https://openrouter.ai/api/v1",
+                "models": [
+                    "openai/gpt-4o-mini",
+                    "openai/gpt-4o",
+                    "anthropic/claude-3.5-sonnet",
+                    "google/gemini-2.0-flash-001",
+                    "meta-llama/llama-3.3-70b-instruct",
+                    "deepseek/deepseek-chat",
+                ],
+                "key_url": "https://openrouter.ai/keys",
+            },
+            {
+                "id": "openai",
+                "name": "OpenAI",
+                "base_url": "https://api.openai.com/v1",
+                "models": ["gpt-4o-mini", "gpt-4o"],
+                "key_url": "https://platform.openai.com/api-keys",
+            },
+        ],
     }
 
 

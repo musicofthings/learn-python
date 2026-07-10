@@ -334,11 +334,18 @@
 
   function renderHome() {
     const api = state.apiOnline;
-    const apiLabel = api === true ? "API online (AI ready)" : api === false ? "Offline mode (local generator)" : "Checking API…";
+    const live = typeof HelixAPI.hasLiveKey === "function" && HelixAPI.hasLiveKey();
+    const apiLabel = !live
+      ? "Add OpenRouter key for live AI"
+      : api === true
+        ? "API online · live AI ready"
+        : api === false
+          ? "Server offline · local fallback"
+          : "Checking API…";
     return `
       <section class="screen hero" aria-labelledby="hero-title">
         <div class="hero-tools">
-          <span class="api-pill ${api === true ? "ok" : api === false ? "bad" : ""}">${apiLabel}</span>
+          <span class="api-pill ${!live ? "bad" : api === true ? "ok" : api === false ? "bad" : ""}">${apiLabel}</span>
           <button type="button" class="btn btn-ghost btn-small" data-action="settings">AI settings</button>
         </div>
         <h1 class="hero-brand" id="hero-title">HelixBench</h1>
@@ -346,6 +353,7 @@
           Dynamic CompBio learning for pharma AI drug discovery —
           flashcards, quizzes, and microlearning on pLMs, folding, docking, BiTE, ADC, and Python code reading.
         </p>
+        ${live ? `<p class="settings-hint">Live AI enabled via OpenRouter · regenerations avoid recent repeats.</p>` : `<p class="hero-lead" style="margin-top:-0.25rem">For unique live Q&amp;A, open <button type="button" class="back-link" data-action="settings">AI settings</button> and paste your <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter</a> key.</p>`}
         <p class="levels-label">Choose a module</p>
         <div class="module-grid module-grid-3" role="list">
           <button type="button" class="module-card" role="listitem" data-action="module-learn">
@@ -649,32 +657,56 @@
 
   function renderSettings() {
     const s = state.settingsDraft || HelixAPI.loadSettings();
+    const hasKey = Boolean(s.apiKey);
     return `
       <section class="screen settings-screen" aria-labelledby="settings-title">
         <button type="button" class="back-link" data-action="home">← Home</button>
-        <h1 class="section-title" id="settings-title">AI settings</h1>
-        <p class="hero-lead">Connect an OpenAI-compatible API for novel Q&amp;A. Mode <strong>auto</strong> uses AI when a key is present, otherwise the local dynamic generator.</p>
+        <h1 class="section-title" id="settings-title">AI settings (OpenRouter)</h1>
+        <p class="hero-lead">
+          Live Q&amp;A is generated through <strong>OpenRouter</strong>.
+          Get a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>,
+          paste it below, save, then click <em>Generate fresh</em> on any quiz or micro topic.
+        </p>
+        ${hasKey ? "" : `<div class="toast" role="status">No API key yet — local templates will repeat. Add an OpenRouter key for unique live questions.</div>`}
         <form class="settings-form" data-action="save-settings">
+          <label>Provider preset
+            <select name="provider" data-action-change="provider-preset">
+              <option value="openrouter" ${s.provider === "openrouter" || !s.provider ? "selected" : ""}>OpenRouter (recommended)</option>
+              <option value="openai" ${s.provider === "openai" ? "selected" : ""}>OpenAI</option>
+            </select>
+          </label>
           <label>Generation mode
             <select name="mode">
               <option value="auto" ${s.mode === "auto" ? "selected" : ""}>auto (AI if key, else local)</option>
-              <option value="ai" ${s.mode === "ai" ? "selected" : ""}>ai only</option>
-              <option value="local" ${s.mode === "local" ? "selected" : ""}>local dynamic only</option>
+              <option value="ai" ${s.mode === "ai" ? "selected" : ""}>AI only (OpenRouter/LLM)</option>
+              <option value="local" ${s.mode === "local" ? "selected" : ""}>local templates only</option>
             </select>
           </label>
-          <label>API key
-            <input type="password" name="apiKey" value="${escapeHtml(s.apiKey || "")}" placeholder="sk-…" autocomplete="off" />
+          <label>OpenRouter / LLM API key
+            <input type="password" name="apiKey" value="${escapeHtml(s.apiKey || "")}" placeholder="sk-or-v1-…" autocomplete="off" />
           </label>
           <label>Base URL
-            <input type="url" name="baseUrl" value="${escapeHtml(s.baseUrl || "")}" placeholder="https://api.openai.com/v1" />
+            <input type="url" name="baseUrl" value="${escapeHtml(s.baseUrl || "https://openrouter.ai/api/v1")}" placeholder="https://openrouter.ai/api/v1" />
           </label>
           <label>Model
-            <input type="text" name="model" value="${escapeHtml(s.model || "")}" placeholder="gpt-4o-mini" />
+            <input type="text" name="model" value="${escapeHtml(s.model || "openai/gpt-4o-mini")}" list="model-suggestions" placeholder="openai/gpt-4o-mini" />
+            <datalist id="model-suggestions">
+              <option value="openai/gpt-4o-mini"></option>
+              <option value="openai/gpt-4o"></option>
+              <option value="anthropic/claude-3.5-sonnet"></option>
+              <option value="google/gemini-2.0-flash-001"></option>
+              <option value="meta-llama/llama-3.3-70b-instruct"></option>
+              <option value="deepseek/deepseek-chat"></option>
+            </datalist>
           </label>
-          <p class="settings-hint">Works with OpenAI, Groq, OpenRouter, and other OpenAI-compatible endpoints. Key stays in your browser localStorage and is sent as <code>X-LLM-API-Key</code>.</p>
+          <p class="settings-hint">
+            Key stays in browser localStorage and is sent as <code>X-LLM-API-Key</code> to the HelixBench server,
+            which calls OpenRouter. Recent prompts are remembered so regenerations avoid repeats.
+          </p>
           <div class="results-actions">
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary">Save &amp; enable live AI</button>
             <button type="button" class="btn btn-ghost" data-action="clear-key">Clear key</button>
+            <button type="button" class="btn btn-ghost" data-action="clear-history">Clear question history</button>
           </div>
         </form>
       </section>`;
@@ -769,14 +801,25 @@
     e.preventDefault();
     const fd = new FormData(form);
     HelixAPI.saveSettings({
+      provider: String(fd.get("provider") || "openrouter"),
       mode: String(fd.get("mode") || "auto"),
       apiKey: String(fd.get("apiKey") || "").trim(),
-      baseUrl: String(fd.get("baseUrl") || "").trim(),
-      model: String(fd.get("model") || "").trim(),
+      baseUrl: String(fd.get("baseUrl") || "https://openrouter.ai/api/v1").trim(),
+      model: String(fd.get("model") || "openai/gpt-4o-mini").trim(),
     });
     state.settingsDraft = HelixAPI.loadSettings();
     setToast("Settings saved");
     state.screen = "home";
+    render();
+  });
+
+  app.addEventListener("change", (e) => {
+    const sel = e.target.closest("select[name='provider']");
+    if (!sel || state.screen !== "settings") return;
+    const typedKey = (app.querySelector("input[name='apiKey']") || {}).value;
+    const mode = (app.querySelector("select[name='mode']") || {}).value;
+    const next = HelixAPI.applyProviderPreset(sel.value);
+    state.settingsDraft = { ...next, apiKey: typedKey || next.apiKey, mode: mode || next.mode };
     render();
   });
 
