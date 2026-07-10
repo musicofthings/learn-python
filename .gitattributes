@@ -1,0 +1,4 @@
+# Force LF for shell scripts (avoids "set: pipefail" on Windows Git Bash)
+*.sh text eol=lf
+*.bash text eol=lf
+cloudflare/scripts/* text eol=lf

@@ -45,10 +45,13 @@ npx wrangler secret put LLM_API_KEY
 
 ```bash
 cd cloudflare
+npm install
 npm run deploy
 ```
 
-This runs `prepare-assets` (copies `index.html`, `css/`, `js/` into `public/`) then `wrangler deploy`.
+This runs a **Node** prepare step (copies `index.html`, `css/`, `js/` into `public/`) then `wrangler deploy`. Works on Windows — do not rely on the old bash script if you see `set: pipefail` errors.
+
+**Branch note:** use the HelixBench branch that contains `cloudflare/` (e.g. `cursor/biopy-interview-quiz-2ad1`), not an empty `main`, unless that work has been merged.
 
 Open the `*.workers.dev` URL (or attach a custom domain in the Cloudflare dashboard).
 

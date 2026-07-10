@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Copy HelixBench static frontend into cloudflare/public for Worker Assets.
-set -euo pipefail
+# Deprecated: prefer `node scripts/prepare-assets.js` (npm run prepare-assets).
+# Kept for Unix users; avoid CRLF — see .gitattributes.
+set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DEST="$(cd "$(dirname "$0")/.." && pwd)/public"
 
