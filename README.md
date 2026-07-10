@@ -2,20 +2,24 @@
 
 Interactive BioPython / computational biology quiz for **pharma AI drug discovery** interview prep.
 
-## What it covers
+## Domains
 
-Not generic Python trivia — sessions focus on workflows used in computational biology and medicinal chemistry:
+Sessions are organized by scientific domain (not generic Python trivia):
 
-- **Foundation** — BioPython SeqIO/Seq, FASTA/PDB, SMILES & InChIKey, assay tables, potency units
-- **Practitioner** — RDKit, fingerprints, AlignIO/PDB neighbors, ChEMBL-style curation, ADMET filters, QSAR hygiene
-- **Specialist** — molecular GNNs, scaffold splits, generative chemistry, docking triage, multi-omics target ID, production pipelines
+- **Genomics** — SeqIO, Entrez, MSA, CRISPR oligos, expression QC
+- **Chemistry** — SMILES, RDKit, fingerprints, ADMET, QSAR, generative chemistry
+- **Molecular** — PDB/mmCIF, pockets, protein LMs, target prioritization
+- **Biologics** — antibodies, translation, CDRs, developability, orthologs
+- **Docking** — poses, IFPs, conformers, enrichment, covalent setup
+- **Clinical** — assays, pIC50, scaffold splits, PK translation, biomarkers, uncertainty
 
 ## How to play
 
-1. Open the app and pick a level.
-2. Each session has **10 multiple-choice** questions (sampled from a larger bank).
-3. Answers reveal **immediately** with **green / red** feedback and a short explanation.
-4. Finish with a score breakdown; retry or switch levels anytime.
+1. Open the app and pick a domain.
+2. Each session has **10 multiple-choice** questions sampled from that domain’s bank.
+3. **Question order and answer choices are shuffled** every run.
+4. Answers reveal **immediately** with **green / red** feedback and a short explanation.
+5. Finish with a score breakdown; retry or switch domains anytime.
 
 ## Run locally
 

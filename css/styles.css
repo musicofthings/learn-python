@@ -300,6 +300,16 @@ body {
   .level-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  .domain-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 960px) {
+  .domain-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .level-option {
