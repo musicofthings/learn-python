@@ -109,19 +109,28 @@
   }
 
   async function ensureMicroTopics() {
-    if (state.microTopics.length) return;
+    // Always seed from embedded catalog first so the UI never looks empty.
+    if (!state.microTopics.length && typeof MICRO_TOPICS !== "undefined") {
+      state.microTopics = MICRO_TOPICS;
+    }
     try {
       const data = await HelixAPI.microTopics();
-      state.microTopics = data.topics || [];
-      state.apiOnline = true;
+      if (data.topics && data.topics.length) {
+        state.microTopics = data.topics;
+      }
+      state.apiOnline = !(data.warning && data.source === "embedded");
     } catch (err) {
       state.apiOnline = false;
-      state.microTopics = [];
-      setToast("API offline — start the HelixBench server for microlearning & AI generation.");
+      if (!state.microTopics.length && typeof MICRO_TOPICS !== "undefined") {
+        state.microTopics = MICRO_TOPICS;
+      }
     }
   }
 
   async function probeHealth() {
+    if (typeof MICRO_TOPICS !== "undefined" && !state.microTopics.length) {
+      state.microTopics = MICRO_TOPICS;
+    }
     try {
       await HelixAPI.health();
       state.apiOnline = true;
@@ -206,9 +215,17 @@
     state.loading = true;
     render();
     try {
-      let topic = state.microTopics.find((t) => t.id === topicId);
-      const data = await HelixAPI.generateMicro(topicId, 6, 8);
+      let topic = state.microTopics.find((t) => t.id === topicId)
+        || (typeof MICRO_TOPICS !== "undefined" && MICRO_TOPICS.find((t) => t.id === topicId));
+      let data;
+      try {
+        data = await HelixAPI.generateMicro(topicId, 6, 8);
+      } catch (err) {
+        data = HelixGenerator.micro(topicId, 6, 8);
+        data.warning = String(err.message || err);
+      }
       topic = data.topic || topic;
+      if (!topic) throw new Error("Unknown micro topic");
       state.microTopic = topic;
       state.cards = shuffle(data.flashcards || []);
       state.questions = (data.quiz || []).map((q) => prepareQuestion({ ...q, choices: [...q.choices], answer: q.answer }));
@@ -317,7 +334,7 @@
 
   function renderHome() {
     const api = state.apiOnline;
-    const apiLabel = api === true ? "API online" : api === false ? "API offline" : "Checking API…";
+    const apiLabel = api === true ? "API online (AI ready)" : api === false ? "Offline mode (local generator)" : "Checking API…";
     return `
       <section class="screen hero" aria-labelledby="hero-title">
         <div class="hero-tools">
@@ -391,7 +408,7 @@
               <span class="level-meta">${escapeHtml(t.category)}</span>
               <span class="level-name">${escapeHtml(t.name)}</span>
               <span class="level-desc">${escapeHtml(t.blurb)}</span>
-            </button>`).join("") : `<p class="hero-lead">Loading topics… If this stays empty, start the API server (<code>./start.sh</code>).</p>`}
+            </button>`).join("") : `<p class="hero-lead">No topics found. Hard-refresh to reload <code>js/micro_topics.js</code>.</p>`}
         </div>
       </section>
     `;

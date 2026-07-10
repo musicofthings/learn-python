@@ -36,9 +36,14 @@ cp server/.env.example server/.env
 ```bash
 chmod +x start.sh
 ./start.sh
+# or: python3 start.py
 ```
 
-Open [http://localhost:8080](http://localhost:8080).
+Then open **http://localhost:8080** (or 8081 if 8080 is busy).
+
+**Important:** Do **not** open `index.html` as a file. Use `./start.sh` / `python3 start.py` so `/api/*` works.
+
+Microlearning lessons also load offline via `js/micro_topics.js`; if the API is down, practice uses the in-browser generator.
 
 Or:
 
