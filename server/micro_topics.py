@@ -1,0 +1,239 @@
+"""Curated microlearning catalog for HelixBench."""
+
+MICRO_TOPICS = [
+    {
+        "id": "protein-language-models",
+        "name": "Protein Language Models",
+        "category": "AI / ML",
+        "blurb": "ESM-style embeddings, masked LMs, variant effect, and multimodal target features.",
+        "tags": ["ESM", "embeddings", "variant effect", "druggability"],
+        "lesson": [
+            {
+                "heading": "What a protein LM learns",
+                "body": "Protein language models (pLMs) are trained on large sequence corpora with masked or autoregressive objectives. Contextual embeddings capture evolutionary and structural regularities useful for variant effect, binding, and tractability features — not as a replacement for chemistry representations of small molecules.",
+            },
+            {
+                "heading": "Practical CompBio uses",
+                "body": "Common patterns: mean-pool residue embeddings for protein-level features; use per-position scores for mutational scanning; combine with structure confidence (pLDDT) and pocket features in multimodal models. Always validate under held-out families/scaffolds.",
+            },
+            {
+                "heading": "Pitfalls",
+                "body": "Do not treat embeddings as Tanimoto-like chemical similarity. Watch train/test leakage across homologs. Low-confidence disordered regions can dominate pooled vectors — mask or weight by confidence when appropriate.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "Mean-pool a fake embedding matrix",
+                "code": "import numpy as np\n\ndef mean_pool(residue_emb: np.ndarray, mask: np.ndarray) -> np.ndarray:\n    \"\"\"residue_emb: [L, D], mask: [L] bool — return [D].\"\"\"\n    w = mask.astype(float)[:, None]\n    return (residue_emb * w).sum(0) / max(mask.sum(), 1)\n\nemb = np.random.randn(128, 64)\nmask = np.ones(128, dtype=bool)\nmask[100:] = False\nprotein_vec = mean_pool(emb, mask)\nprint(protein_vec.shape)",
+                "explain": "Masked mean-pooling turns variable-length residue embeddings into a fixed protein vector for downstream classifiers.",
+            }
+        ],
+        "quiz_focus": "protein language models, ESM embeddings, variant effect prediction, multimodal target features, homology leakage",
+    },
+    {
+        "id": "protein-folding",
+        "name": "Protein Folding",
+        "category": "Structure",
+        "blurb": "AlphaFold/OpenFold confidence, construct design, and using predicted structures in discovery.",
+        "tags": ["AlphaFold", "pLDDT", "PAE", "constructs"],
+        "lesson": [
+            {
+                "heading": "Confidence is the product",
+                "body": "Predicted structures are only as trustworthy as their confidence metrics. pLDDT flags local reliability; PAE describes relative domain orientations. Docking or pocket detection on low-pLDDT loops is a common failure mode.",
+            },
+            {
+                "heading": "From sequence to assay construct",
+                "body": "Fold models help propose domain boundaries with disorder predictions. Combine Pfam/UniProt domains with pLDDT drop-offs to design soluble expression constructs for kinases and other targets.",
+            },
+            {
+                "heading": "Holo vs apo reality",
+                "body": "AF models are typically apo-like. Ligand-induced fit, cryptic pockets, and cofactors may be missing. Ensemble or holo templates still matter for structure-based design.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "Filter residues by pLDDT",
+                "code": "def confident_residues(plddt, threshold=70):\n    return [i for i, s in enumerate(plddt) if s >= threshold]\n\nplddt = [90, 88, 55, 40, 92]\nprint(confident_residues(plddt))",
+                "explain": "Simple confidence gating before using coordinates for pocket or interface analysis.",
+            }
+        ],
+        "quiz_focus": "AlphaFold pLDDT PAE, construct design, apo vs holo limitations, using predicted structures for docking",
+    },
+    {
+        "id": "docking-studies",
+        "name": "Docking Studies",
+        "category": "Structure-based",
+        "blurb": "Grid boxes, protomers, pose clustering, IFPs, enrichment, and covalent protocols.",
+        "tags": ["poses", "IFP", "enrichment", "covalent"],
+        "lesson": [
+            {
+                "heading": "Prep beats scoring",
+                "body": "Protonation/tautomers, pocket definition, and waters/cofactors often matter more than which engine you pick. Wrong protomers silently destroy H-bond networks.",
+            },
+            {
+                "heading": "After the dock",
+                "body": "Cluster poses, compute interaction fingerprints, rescore, and filter strain/clashes. Early enrichment metrics communicate VS quality — with decoy bias caveats.",
+            },
+            {
+                "heading": "Flexibility & covalents",
+                "body": "Loop-gated pockets need ensembles or induced fit. Covalent libraries need warhead-aware constraints to the nucleophilic residue.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "RMSD-style pose cluster seed",
+                "code": "import numpy as np\n\ndef greedy_cluster(rmsd: np.ndarray, cutoff=2.0):\n    \"\"\"rmsd[i,j] pairwise; return representative indices.\"\"\"\n    n = rmsd.shape[0]\n    unused = set(range(n))\n    reps = []\n    while unused:\n        i = min(unused)\n        reps.append(i)\n        unused -= {j for j in unused if rmsd[i, j] <= cutoff}\n    return reps\n\nR = np.array([[0, 1.1, 3.5], [1.1, 0, 3.2], [3.5, 3.2, 0]])\nprint(greedy_cluster(R))",
+                "explain": "Greedy clustering compresses redundant docking poses into diverse representatives.",
+            }
+        ],
+        "quiz_focus": "docking prep, pose clustering, interaction fingerprints, enrichment metrics, covalent docking, induced fit",
+    },
+    {
+        "id": "python-code-reading",
+        "name": "Python Code Reading",
+        "category": "Engineering",
+        "blurb": "What does this code do? BioPython, RDKit, pandas, and NumPy snippets from discovery workflows.",
+        "tags": ["SeqIO", "RDKit", "pandas", "debugging"],
+        "lesson": [
+            {
+                "heading": "Read for side effects",
+                "body": "Interview code questions test whether you see I/O formats, None returns (MolFromSmiles), unit coercion, and group-aware splits — not trivia about syntax sugar.",
+            },
+            {
+                "heading": "CompBio idioms",
+                "body": "SeqIO.parse vs read, sanitize after SMILES parse, pd.to_numeric(errors='coerce'), and scaffold-grouped CV are recurring patterns.",
+            },
+            {
+                "heading": "How to answer",
+                "body": "State inputs/outputs, name the failure modes (invalid SMILES, mixed units, leakage), and suggest the one-line fix.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "Spot the leakage",
+                "code": "from sklearn.model_selection import train_test_split\nimport pandas as pd\n\ndf = pd.DataFrame({\n    'compound_id': ['A','A','B','B'],\n    'dose': [1, 10, 1, 10],\n    'pIC50': [5.1, 5.1, 6.2, 6.2],\n})\n# BUG: splits wells, not compounds\ntrain, test = train_test_split(df, test_size=0.5, random_state=0)\nprint(train['compound_id'].tolist(), test['compound_id'].tolist())",
+                "explain": "Random row splits leak the same compound into train and test. Split on compound_id/scaffold groups instead.",
+            }
+        ],
+        "quiz_focus": "reading BioPython RDKit pandas code, identifying bugs, SeqIO parse vs read, MolFromSmiles None, scaffold split leakage",
+    },
+    {
+        "id": "bite-engagers",
+        "name": "BiTE & T-cell Engagers",
+        "category": "Biologics",
+        "blurb": "Bispecific T-cell engagers: formats, CD3 engagement, developability, and cyno cross-reactivity.",
+        "tags": ["BiTE", "CD3", "bispecific", "cytokine"],
+        "lesson": [
+            {
+                "heading": "Mechanism",
+                "body": "BiTEs (bispecific T-cell engagers) bind a tumor-associated antigen and CD3 to redirect T-cell cytotoxicity. Geometry, affinity, and valency tune synapse formation and cytokine risk.",
+            },
+            {
+                "heading": "Formats & half-life",
+                "body": "Classic scFv-scFv BiTEs are potent but short-lived; Fc-containing engagers extend half-life. CompBio supports developability, immunogenicity, and ortholog epitope checks for tox species.",
+            },
+            {
+                "heading": "Safety & biomarkers",
+                "body": "CRS risk, on-target/off-tumor antigen expression, and epitope conservation across human/cyno are central translational questions.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "Flag antigen expression risk",
+                "code": "def off_tumor_risk(tpm: dict, antigen: str, threshold=5.0):\n    \"\"\"Return tissues where antigen TPM exceeds threshold.\"\"\"\n    return sorted([t for t, v in tpm.items() if v >= threshold])\n\nexpr = {'tumor': 80, 'heart': 0.2, 'lung': 6.5, 'liver': 1.1}\nprint(off_tumor_risk(expr, 'TAA'))",
+                "explain": "Simple expression triage for on-target/off-tumor risk before engager nomination.",
+            }
+        ],
+        "quiz_focus": "BiTE mechanism, CD3 engagement, formats half-life, cytokine release, cyno cross-reactivity, off-tumor antigen risk",
+    },
+    {
+        "id": "adc-conjugates",
+        "name": "Antibody-Drug Conjugates",
+        "category": "Biologics",
+        "blurb": "ADC anatomy: mAb, linker, payload; DAR; internalization; bystander effect.",
+        "tags": ["ADC", "DAR", "linker", "payload"],
+        "lesson": [
+            {
+                "heading": "Three-part system",
+                "body": "ADCs combine a targeting antibody, cleavable or non-cleavable linker, and cytotoxic payload. Efficacy depends on antigen selectivity, internalization, and linker stability in circulation.",
+            },
+            {
+                "heading": "DAR & heterogeneity",
+                "body": "Drug-to-antibody ratio (DAR) affects potency, clearance, and aggregation. Site-specific conjugation reduces heterogeneity versus stochastic lysine coupling.",
+            },
+            {
+                "heading": "Payload logic",
+                "body": "Membrane-permeable payloads can show bystander killing in heterogeneous tumors; impermeable payloads spare neighbors. CompBio joins internalization assays, antigen density, and PK.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "Estimate average DAR from species mix",
+                "code": "def average_dar(species_fractions: dict) -> float:\n    \"\"\"species_fractions maps DAR->fraction (must sum ~1).\"\"\"\n    return sum(dar * frac for dar, frac in species_fractions.items())\n\nprint(round(average_dar({0: 0.05, 2: 0.35, 4: 0.45, 6: 0.15}), 2))",
+                "explain": "Weighted average DAR from a deconvoluted conjugate distribution.",
+            }
+        ],
+        "quiz_focus": "ADC antibody linker payload, DAR, cleavable vs non-cleavable linkers, bystander effect, site-specific conjugation",
+    },
+    {
+        "id": "qsar-molecular-ml",
+        "name": "QSAR & Molecular ML",
+        "category": "AI / ML",
+        "blurb": "Descriptors, fingerprints, scaffold splits, calibration, and active learning for potency models.",
+        "tags": ["QSAR", "scaffold split", "uncertainty"],
+        "lesson": [
+            {
+                "heading": "Labels first",
+                "body": "Unit harmonization, qualified values, and parent-compound dedup beat fancy architectures on messy ChEMBL-like tables.",
+            },
+            {
+                "heading": "Split like discovery",
+                "body": "Scaffold/time splits expose generalization; random splits leak analogues and inflate AUROC.",
+            },
+            {
+                "heading": "Decide with uncertainty",
+                "body": "Ensembles and conformal methods support medchem intervals and active-learning acquisition under assay budgets.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "pIC50 conversion",
+                "code": "import math\n\ndef ic50_nM_to_pic50(ic50_nM: float) -> float:\n    return -math.log10(ic50_nM * 1e-9)\n\nprint(round(ic50_nM_to_pic50(100), 1))",
+                "explain": "100 nM → pIC50 7.0 using molar units inside the log.",
+            }
+        ],
+        "quiz_focus": "QSAR descriptors fingerprints, ChEMBL curation, scaffold splits, calibration, active learning",
+    },
+    {
+        "id": "crispr-genomics",
+        "name": "CRISPR & Genomics Ops",
+        "category": "Genomics",
+        "blurb": "Guide design, GC, off-targets, reference builds, and expression joins.",
+        "tags": ["CRISPR", "off-target", "GRCh38"],
+        "lesson": [
+            {
+                "heading": "Guides are genomic objects",
+                "body": "On-target scores, GC, and genome-wide off-target aligners dominate — not chemistry filters meant for small molecules.",
+            },
+            {
+                "heading": "Pin the build",
+                "body": "GRCh37 vs GRCh38 coordinate mismatches silently break peak/variant joins. Pin and document the assembly.",
+            },
+        ],
+        "code_examples": [
+            {
+                "title": "GC fraction",
+                "code": "def gc_fraction(seq: str) -> float:\n    s = seq.upper()\n    return (s.count('G') + s.count('C')) / max(len(s), 1)\n\nprint(round(gc_fraction('GCGCATAT'), 2))",
+                "explain": "Basic GC helper analogous to Bio.SeqUtils.gc_fraction for oligo windows.",
+            }
+        ],
+        "quiz_focus": "CRISPR oligo GC, off-target search, reference genome builds, RNA-seq ID mapping",
+    },
+]
+
+
+def get_topic(topic_id: str):
+    for t in MICRO_TOPICS:
+        if t["id"] == topic_id:
+            return t
+    return None
