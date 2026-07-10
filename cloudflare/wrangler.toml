@@ -1,4 +1,4 @@
-# HelixBench — Cloudflare Worker + static assets (+ optional KV cache)
+# HelixBench — Cloudflare Worker + static assets + KV cache
 name = "helixbench"
 main = "src/worker.js"
 compatibility_date = "2024-12-01"
@@ -10,17 +10,11 @@ directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
-# --- Optional shared edge cache (KV) ---
-# Deploy works WITHOUT this. Browser localStorage still caches modules.
-# To enable KV:
-#   1. npx wrangler kv namespace create HELIX_CACHE
-#   2. npx wrangler kv namespace create HELIX_CACHE --preview
-#   3. Uncomment below and paste the real ids (not REPLACE_...)
-#
-# [[kv_namespaces]]
-# binding = "HELIX_CACHE"
-# id = "your_production_kv_id"
-# preview_id = "your_preview_kv_id"
+[[kv_namespaces]]
+binding = "HELIX_CACHE"
+id = "46dca5ab4e0c438799ab6ca1d15f3ef4"
+# Optional for `wrangler dev`:
+# preview_id = "paste_preview_id_here"
 
 [vars]
 LLM_BASE_URL = "https://openrouter.ai/api/v1"
