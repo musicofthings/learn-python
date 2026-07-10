@@ -17,6 +17,7 @@
     flipped: false,
     source: "bank",
     warning: null,
+    cacheInfo: null,
     loading: false,
     microTopics: [],
     microTopic: null,
@@ -159,14 +160,16 @@
       if (state.module === "learn") {
         if (regenerate || state.apiOnline !== false) {
           try {
-            const data = await HelixAPI.generateFlashcards(domainId, 12);
+            const data = await HelixAPI.generateFlashcards(domainId, 12, { refresh: regenerate });
             state.cards = shuffle(data.cards || []);
             state.source = data.source || "ai";
             state.warning = data.warning || null;
+            state.cacheInfo = data._cache || null;
           } catch (err) {
             state.cards = bankCards(domainId);
             state.source = "bank";
             state.warning = String(err.message || err);
+            state.cacheInfo = null;
           }
         } else {
           state.cards = bankCards(domainId);
@@ -178,22 +181,22 @@
       } else {
         if (regenerate || state.apiOnline !== false) {
           try {
-            const data = await HelixAPI.generateQuiz(domainId, SESSION_SIZE);
+            const data = await HelixAPI.generateQuiz(domainId, SESSION_SIZE, { refresh: regenerate });
             state.questions = (data.questions || []).map((q) =>
-              q.source === "ai" ? q : prepareQuestion(q)
+              prepareQuestion({
+                ...q,
+                choices: [...q.choices],
+                answer: q.answer,
+              })
             );
-            // Always shuffle choices client-side for safety
-            state.questions = state.questions.map((q) => prepareQuestion({
-              ...q,
-              choices: [...q.choices],
-              answer: q.answer,
-            }));
             state.source = data.source || "ai";
             state.warning = data.warning || null;
+            state.cacheInfo = data._cache || null;
           } catch (err) {
             state.questions = bankQuiz(domainId);
             state.source = "bank";
             state.warning = String(err.message || err);
+            state.cacheInfo = null;
           }
         } else {
           state.questions = bankQuiz(domainId);
@@ -211,7 +214,7 @@
     }
   }
 
-  async function openMicroTopic(topicId) {
+  async function openMicroTopic(topicId, { refresh = false } = {}) {
     state.loading = true;
     render();
     try {
@@ -219,7 +222,7 @@
         || (typeof MICRO_TOPICS !== "undefined" && MICRO_TOPICS.find((t) => t.id === topicId));
       let data;
       try {
-        data = await HelixAPI.generateMicro(topicId, 6, 8);
+        data = await HelixAPI.generateMicro(topicId, 6, 8, { refresh });
       } catch (err) {
         data = HelixGenerator.micro(topicId, 6, 8);
         data.warning = String(err.message || err);
@@ -231,6 +234,7 @@
       state.questions = (data.quiz || []).map((q) => prepareQuestion({ ...q, choices: [...q.choices], answer: q.answer }));
       state.source = data.source || "local";
       state.warning = data.warning || null;
+      state.cacheInfo = data._cache || null;
       state.cardIndex = 0;
       state.flipped = false;
       state.index = 0;
@@ -310,7 +314,7 @@
 
   async function reshuffleOrRegenerate() {
     if (state.module === "micro" && state.microTopic) {
-      await openMicroTopic(state.microTopic.id);
+      await openMicroTopic(state.microTopic.id, { refresh: true });
       state.microTab = "cards";
       render();
       return;
@@ -323,7 +327,15 @@
       state.source === "ai" ? "AI generated" :
       state.source === "local" ? "Dynamic local" :
       "Curated bank";
-    return `<span class="source-badge source-${escapeHtml(state.source)}">${label}</span>`;
+    let cache = "";
+    if (state.cacheInfo && state.cacheInfo.hit) {
+      const age = state.cacheInfo.age_seconds || 0;
+      const ageLabel = age < 60 ? `${age}s ago` : age < 3600 ? `${Math.floor(age / 60)}m ago` : `${Math.floor(age / 3600)}h ago`;
+      cache = `<span class="source-badge source-cache">Cached · ${ageLabel}</span>`;
+    } else if (state.cacheInfo && state.cacheInfo.layer === "miss") {
+      cache = `<span class="source-badge source-cache">Fresh</span>`;
+    }
+    return `<span class="source-badge source-${escapeHtml(state.source)}">${label}</span>${cache}`;
   }
 
   function toastHtml() {
@@ -729,7 +741,7 @@
   app.addEventListener("click", async (e) => {
     const start = e.target.closest("[data-start]");
     if (start) {
-      await startDomain(start.getAttribute("data-start"), { regenerate: true });
+      await startDomain(start.getAttribute("data-start"), { regenerate: false });
       return;
     }
 

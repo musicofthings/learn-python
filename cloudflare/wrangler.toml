@@ -1,0 +1,28 @@
+# HelixBench — Cloudflare Worker + static assets + KV cache
+name = "helixbench"
+main = "src/worker.js"
+compatibility_date = "2024-12-01"
+workers_dev = true
+
+# Static frontend (populated by scripts/prepare-assets.sh)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Create with: npx wrangler kv namespace create HELIX_CACHE
+# Then paste the ids below (preview optional for local wrangler dev)
+[[kv_namespaces]]
+binding = "HELIX_CACHE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+[vars]
+LLM_BASE_URL = "https://openrouter.ai/api/v1"
+LLM_MODEL = "openai/gpt-4o-mini"
+CACHE_TTL_SECONDS = "86400"
+OPENROUTER_APP_NAME = "HelixBench"
+
+# Secrets (set via CLI, do not commit):
+#   npx wrangler secret put LLM_API_KEY
+# Optional: users can still paste a key in the UI (sent as X-LLM-API-Key).

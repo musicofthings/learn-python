@@ -86,6 +86,7 @@ const HelixAPI = (() => {
 
   function clearHistory() {
     localStorage.removeItem(HISTORY_KEY);
+    if (typeof HelixCache !== "undefined") HelixCache.clear();
   }
 
   async function request(path, options = {}) {
@@ -169,14 +170,22 @@ const HelixAPI = (() => {
     return loadSettings();
   }
 
-  async function generateQuiz(domain, n = 10) {
+  async function generateQuiz(domain, n = 10, opts = {}) {
+    const refresh = Boolean(opts.refresh);
     const s = loadSettings();
+    const mode = s.mode === "local" || !s.apiKey ? "local" : (s.mode === "ai" ? "ai" : "auto");
+    const effectiveMode = mode === "auto" ? (s.apiKey ? "ai" : "local") : mode;
+    const ckey = HelixCache.quizKey(domain, n, effectiveMode, s.model);
+    if (!refresh) {
+      const cached = HelixCache.get(ckey);
+      if (cached && cached.questions && cached.questions.length) return cached;
+    }
     const bucket = `quiz:${domain}`;
-    const exclude = excludeFor(bucket);
+    const exclude = refresh ? excludeFor(bucket) : [];
     if (s.mode === "local") {
       const data = HelixGenerator.quiz(domain, n);
       rememberPrompts(bucket, (data.questions || []).map((q) => q.question));
-      return data;
+      return HelixCache.set(ckey, data);
     }
     try {
       const data = await request("/api/generate/quiz", {
@@ -189,27 +198,35 @@ const HelixAPI = (() => {
           base_url: s.baseUrl || undefined,
           model: s.model || undefined,
           exclude,
+          refresh,
         }),
       });
       rememberPrompts(bucket, (data.questions || []).map((q) => q.question));
-      return data;
+      return HelixCache.set(ckey, data);
     } catch (err) {
       if (s.mode === "ai") throw err;
       const data = HelixGenerator.quiz(domain, n);
       data.warning = "API unavailable (" + err.message + "); used in-browser generator.";
       rememberPrompts(bucket, (data.questions || []).map((q) => q.question));
-      return data;
+      return HelixCache.set(ckey, data);
     }
   }
 
-  async function generateFlashcards(domain, n = 12) {
+  async function generateFlashcards(domain, n = 12, opts = {}) {
+    const refresh = Boolean(opts.refresh);
     const s = loadSettings();
+    const effectiveMode = s.mode === "local" || !s.apiKey ? "local" : "ai";
+    const ckey = HelixCache.flashKey(domain, n, effectiveMode, s.model);
+    if (!refresh) {
+      const cached = HelixCache.get(ckey);
+      if (cached && cached.cards && cached.cards.length) return cached;
+    }
     const bucket = `flash:${domain}`;
-    const exclude = excludeFor(bucket);
+    const exclude = refresh ? excludeFor(bucket) : [];
     if (s.mode === "local") {
       const data = HelixGenerator.flashcards(domain, n);
       rememberPrompts(bucket, (data.cards || []).map((c) => c.front));
-      return data;
+      return HelixCache.set(ckey, data);
     }
     try {
       const data = await request("/api/generate/flashcards", {
@@ -222,30 +239,40 @@ const HelixAPI = (() => {
           base_url: s.baseUrl || undefined,
           model: s.model || undefined,
           exclude,
+          refresh,
         }),
       });
       rememberPrompts(bucket, (data.cards || []).map((c) => c.front));
-      return data;
+      return HelixCache.set(ckey, data);
     } catch (err) {
       if (s.mode === "ai") throw err;
       const data = HelixGenerator.flashcards(domain, n);
       data.warning = "API unavailable (" + err.message + "); used in-browser generator.";
       rememberPrompts(bucket, (data.cards || []).map((c) => c.front));
-      return data;
+      return HelixCache.set(ckey, data);
     }
   }
 
-  async function generateMicro(topicId, nQuiz = 6, nCards = 8) {
+  async function generateMicro(topicId, nQuiz = 6, nCards = 8, opts = {}) {
+    const refresh = Boolean(opts.refresh);
     const s = loadSettings();
+    const effectiveMode = s.mode === "local" || !s.apiKey ? "local" : "ai";
+    const ckey = HelixCache.microKey(topicId, nQuiz, nCards, effectiveMode, s.model);
+    if (!refresh) {
+      const cached = HelixCache.get(ckey);
+      if (cached && ((cached.quiz && cached.quiz.length) || (cached.topic && cached.topic.lesson))) {
+        return cached;
+      }
+    }
     const bucket = `micro:${topicId}`;
-    const exclude = excludeFor(bucket);
+    const exclude = refresh ? excludeFor(bucket) : [];
     if (s.mode === "local") {
       const data = HelixGenerator.micro(topicId, nQuiz, nCards);
       rememberPrompts(
         bucket,
         [...(data.quiz || []).map((q) => q.question), ...(data.flashcards || []).map((c) => c.front)]
       );
-      return data;
+      return HelixCache.set(ckey, data);
     }
     try {
       const data = await request("/api/generate/micro", {
@@ -259,13 +286,14 @@ const HelixAPI = (() => {
           base_url: s.baseUrl || undefined,
           model: s.model || undefined,
           exclude,
+          refresh,
         }),
       });
       rememberPrompts(
         bucket,
         [...(data.quiz || []).map((q) => q.question), ...(data.flashcards || []).map((c) => c.front)]
       );
-      return data;
+      return HelixCache.set(ckey, data);
     } catch (err) {
       if (s.mode === "ai") throw err;
       const data = HelixGenerator.micro(topicId, nQuiz, nCards);
@@ -274,7 +302,7 @@ const HelixAPI = (() => {
         bucket,
         [...(data.quiz || []).map((q) => q.question), ...(data.flashcards || []).map((c) => c.front)]
       );
-      return data;
+      return HelixCache.set(ckey, data);
     }
   }
 

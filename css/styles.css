@@ -1039,3 +1039,9 @@ code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.86em;
 }
+
+.source-badge.source-cache {
+  background: rgba(45, 158, 140, 0.15);
+  color: var(--teal);
+  margin-left: 0.35rem;
+}
