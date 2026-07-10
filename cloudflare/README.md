@@ -24,24 +24,15 @@ Local FastAPI keeps the same API + disk/memory cache for `python3 start.py`.
 cd cloudflare
 npm install
 npx wrangler login
-
-# Create KV namespaces and paste ids into wrangler.toml
-npm run kv:create
-npm run kv:create-preview
 ```
 
-Edit `wrangler.toml`:
-
-- `[[kv_namespaces]].id` → production KV id
-- `[[kv_namespaces]].preview_id` → preview KV id
-
-Optional server-side key (users can still paste a key in **AI settings**):
+Optional shared OpenRouter key (users can still paste a key in **AI settings**):
 
 ```bash
 npx wrangler secret put LLM_API_KEY
 ```
 
-## Deploy
+## Deploy (works without KV)
 
 ```bash
 cd cloudflare
@@ -49,11 +40,18 @@ npm install
 npm run deploy
 ```
 
-This runs a **Node** prepare step (copies `index.html`, `css/`, `js/` into `public/`) then `wrangler deploy`. Works on Windows — do not rely on the old bash script if you see `set: pipefail` errors.
+`wrangler.toml` ships **without** a KV binding so deploy does not fail on placeholder ids. Browser cache still works.
 
-**Branch note:** use the HelixBench branch that contains `cloudflare/` (e.g. `cursor/biopy-interview-quiz-2ad1`), not an empty `main`, unless that work has been merged.
+Open the `*.workers.dev` URL printed by Wrangler (or attach a custom domain).
 
-Open the `*.workers.dev` URL (or attach a custom domain in the Cloudflare dashboard).
+### Optional: enable Workers KV (shared edge cache)
+
+```bash
+npx wrangler kv namespace create HELIX_CACHE
+npx wrangler kv namespace create HELIX_CACHE --preview
+```
+
+Uncomment the `[[kv_namespaces]]` block in `wrangler.toml` and paste the real ids, then `npm run deploy` again.
 
 ## Local Worker preview
 
