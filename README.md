@@ -1,43 +1,62 @@
 # HelixBench
 
-Interactive BioPython / computational biology **learning + quiz** app for pharma AI drug discovery interview prep.
+Interactive **learning + quiz + microlearning** app for pharma computational biology / AI drug discovery interview prep.
 
 ## Modules
 
-1. **Flashcards (Learning)** — study prompts/answers by domain; deck is shuffled every session
-2. **Quiz (Assessment)** — 10 multiple-choice questions; questions and choices shuffled every run
+1. **Flashcards** — domain decks (genomics, chemistry, molecular, biologics, docking, clinical)
+2. **Quiz** — 10 MCQs with instant green/red feedback
+3. **Microlearning** — deep dives with lesson + practice:
+   - Protein language models
+   - Protein folding
+   - Docking studies
+   - Python code reading (“what does this code do?”)
+   - BiTE / T-cell engagers
+   - Antibody–drug conjugates (ADC)
+   - QSAR & molecular ML
+   - CRISPR & genomics ops
 
-Topics are matched one-to-one between Learning and Quiz within each domain.
+## Dynamic Q&A (AI)
 
-## Domains
+Questions are **generated on demand**:
 
-- **Genomics** — SeqIO, Entrez, MSA, CRISPR oligos, expression QC
-- **Chemistry** — SMILES, RDKit, fingerprints, ADMET, QSAR, generative chemistry
-- **Molecular** — PDB/mmCIF, pockets, protein LMs, target prioritization
-- **Biologics** — antibodies, translation, CDRs, developability, orthologs
-- **Docking** — poses, IFPs, conformers, enrichment, covalent setup
-- **Clinical** — assays, pIC50, scaffold splits, PK translation, biomarkers, uncertainty
+- **AI mode** — OpenAI-compatible API (OpenAI, Groq, OpenRouter, …)
+- **Local dynamic mode** — template/code generator (no key required)
+- **Auto** (default) — AI when a key is set, otherwise local
 
-## How to use
-
-1. Open the app and choose **Flashcards** or **Quiz**.
-2. Pick a domain category.
-3. Flashcards: click to flip; navigate Previous / Next; **Shuffle deck** anytime.
-4. Quiz: answer for instant **green / red** feedback; finish with a score breakdown.
-5. Jump between study and quiz for the same domain from the end screens.
-
-## Run locally
+Configure in the UI (**AI settings**) or via `server/.env`:
 
 ```bash
-python3 -m http.server 8080
+cp server/.env.example server/.env
+# set LLM_API_KEY, optional LLM_BASE_URL / LLM_MODEL
+```
+
+## Run
+
+```bash
+chmod +x start.sh
+./start.sh
 ```
 
 Open [http://localhost:8080](http://localhost:8080).
 
+Or:
+
+```bash
+pip install -r server/requirements.txt
+uvicorn server.main:app --host 0.0.0.0 --port 8080
+```
+
+## API
+
+- `GET /api/health`
+- `GET /api/micro-topics`
+- `POST /api/generate/quiz`
+- `POST /api/generate/flashcards`
+- `POST /api/generate/micro`
+
 ## Stack
 
-Static HTML/CSS and vanilla JS:
-
-- `js/questions.js` — domains + quiz banks
-- `js/flashcards.js` — learning cards (same topics)
-- `js/app.js` — UI and session logic
+- Frontend: static HTML/CSS/JS
+- Backend: FastAPI (`server/`) for generation + static hosting
+- Curated banks in `js/questions.js` & `js/flashcards.js` remain as offline fallback
