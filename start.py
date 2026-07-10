@@ -145,7 +145,8 @@ def main() -> int:
     log("Press Ctrl+C to stop.")
     log("========================================")
 
-    # Prefer module form so Windows finds uvicorn reliably
+    # Use subprocess (NOT os.execvp): Windows paths with spaces
+    # (e.g. C:\Users\Dr Shibichakravarthy\...) break execvp.
     args = [
         sys.executable,
         "-m",
@@ -157,11 +158,10 @@ def main() -> int:
         str(port),
     ]
     try:
-        os.execvp(args[0], args)
-    except OSError:
-        # Fallback if execvp unavailable
         return subprocess.call(args)
-    return 0
+    except KeyboardInterrupt:
+        log("\nStopped.")
+        return 0
 
 
 if __name__ == "__main__":
