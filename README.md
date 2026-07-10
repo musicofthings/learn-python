@@ -2,6 +2,38 @@
 
 Interactive **learning + quiz + microlearning** app for pharma computational biology / AI drug discovery interview prep.
 
+## Quick start
+
+From the **repo root** (the folder that contains `start.py`):
+
+```bash
+python3 start.py
+```
+
+Windows:
+
+```bat
+start.bat
+```
+
+or:
+
+```bash
+./start.sh
+```
+
+Then open the URL printed in the terminal (usually http://127.0.0.1:8080).
+
+If you see `start.py: not found`, you are probably on an old commit/branch. Run:
+
+```bash
+git fetch origin
+git checkout cursor/biopy-interview-quiz-2ad1
+git pull
+python3 start.py
+```
+
+
 ## Modules
 
 1. **Flashcards** — domain decks (genomics, chemistry, molecular, biologics, docking, clinical)
