@@ -17,6 +17,7 @@
     flipped: false,
     source: "bank",
     warning: null,
+    cacheInfo: null,
     loading: false,
     microTopics: [],
     microTopic: null,
@@ -109,19 +110,28 @@
   }
 
   async function ensureMicroTopics() {
-    if (state.microTopics.length) return;
+    // Always seed from embedded catalog first so the UI never looks empty.
+    if (!state.microTopics.length && typeof MICRO_TOPICS !== "undefined") {
+      state.microTopics = MICRO_TOPICS;
+    }
     try {
       const data = await HelixAPI.microTopics();
-      state.microTopics = data.topics || [];
-      state.apiOnline = true;
+      if (data.topics && data.topics.length) {
+        state.microTopics = data.topics;
+      }
+      state.apiOnline = !(data.warning && data.source === "embedded");
     } catch (err) {
       state.apiOnline = false;
-      state.microTopics = [];
-      setToast("API offline — start the HelixBench server for microlearning & AI generation.");
+      if (!state.microTopics.length && typeof MICRO_TOPICS !== "undefined") {
+        state.microTopics = MICRO_TOPICS;
+      }
     }
   }
 
   async function probeHealth() {
+    if (typeof MICRO_TOPICS !== "undefined" && !state.microTopics.length) {
+      state.microTopics = MICRO_TOPICS;
+    }
     try {
       await HelixAPI.health();
       state.apiOnline = true;
@@ -150,14 +160,16 @@
       if (state.module === "learn") {
         if (regenerate || state.apiOnline !== false) {
           try {
-            const data = await HelixAPI.generateFlashcards(domainId, 12);
+            const data = await HelixAPI.generateFlashcards(domainId, 12, { refresh: regenerate });
             state.cards = shuffle(data.cards || []);
             state.source = data.source || "ai";
             state.warning = data.warning || null;
+            state.cacheInfo = data._cache || null;
           } catch (err) {
             state.cards = bankCards(domainId);
             state.source = "bank";
             state.warning = String(err.message || err);
+            state.cacheInfo = null;
           }
         } else {
           state.cards = bankCards(domainId);
@@ -169,22 +181,22 @@
       } else {
         if (regenerate || state.apiOnline !== false) {
           try {
-            const data = await HelixAPI.generateQuiz(domainId, SESSION_SIZE);
+            const data = await HelixAPI.generateQuiz(domainId, SESSION_SIZE, { refresh: regenerate });
             state.questions = (data.questions || []).map((q) =>
-              q.source === "ai" ? q : prepareQuestion(q)
+              prepareQuestion({
+                ...q,
+                choices: [...q.choices],
+                answer: q.answer,
+              })
             );
-            // Always shuffle choices client-side for safety
-            state.questions = state.questions.map((q) => prepareQuestion({
-              ...q,
-              choices: [...q.choices],
-              answer: q.answer,
-            }));
             state.source = data.source || "ai";
             state.warning = data.warning || null;
+            state.cacheInfo = data._cache || null;
           } catch (err) {
             state.questions = bankQuiz(domainId);
             state.source = "bank";
             state.warning = String(err.message || err);
+            state.cacheInfo = null;
           }
         } else {
           state.questions = bankQuiz(domainId);
@@ -202,18 +214,27 @@
     }
   }
 
-  async function openMicroTopic(topicId) {
+  async function openMicroTopic(topicId, { refresh = false } = {}) {
     state.loading = true;
     render();
     try {
-      let topic = state.microTopics.find((t) => t.id === topicId);
-      const data = await HelixAPI.generateMicro(topicId, 6, 8);
+      let topic = state.microTopics.find((t) => t.id === topicId)
+        || (typeof MICRO_TOPICS !== "undefined" && MICRO_TOPICS.find((t) => t.id === topicId));
+      let data;
+      try {
+        data = await HelixAPI.generateMicro(topicId, 6, 8, { refresh });
+      } catch (err) {
+        data = HelixGenerator.micro(topicId, 6, 8);
+        data.warning = String(err.message || err);
+      }
       topic = data.topic || topic;
+      if (!topic) throw new Error("Unknown micro topic");
       state.microTopic = topic;
       state.cards = shuffle(data.flashcards || []);
       state.questions = (data.quiz || []).map((q) => prepareQuestion({ ...q, choices: [...q.choices], answer: q.answer }));
       state.source = data.source || "local";
       state.warning = data.warning || null;
+      state.cacheInfo = data._cache || null;
       state.cardIndex = 0;
       state.flipped = false;
       state.index = 0;
@@ -293,7 +314,7 @@
 
   async function reshuffleOrRegenerate() {
     if (state.module === "micro" && state.microTopic) {
-      await openMicroTopic(state.microTopic.id);
+      await openMicroTopic(state.microTopic.id, { refresh: true });
       state.microTab = "cards";
       render();
       return;
@@ -306,7 +327,15 @@
       state.source === "ai" ? "AI generated" :
       state.source === "local" ? "Dynamic local" :
       "Curated bank";
-    return `<span class="source-badge source-${escapeHtml(state.source)}">${label}</span>`;
+    let cache = "";
+    if (state.cacheInfo && state.cacheInfo.hit) {
+      const age = state.cacheInfo.age_seconds || 0;
+      const ageLabel = age < 60 ? `${age}s ago` : age < 3600 ? `${Math.floor(age / 60)}m ago` : `${Math.floor(age / 3600)}h ago`;
+      cache = `<span class="source-badge source-cache">Cached · ${ageLabel}</span>`;
+    } else if (state.cacheInfo && state.cacheInfo.layer === "miss") {
+      cache = `<span class="source-badge source-cache">Fresh</span>`;
+    }
+    return `<span class="source-badge source-${escapeHtml(state.source)}">${label}</span>${cache}`;
   }
 
   function toastHtml() {
@@ -317,11 +346,18 @@
 
   function renderHome() {
     const api = state.apiOnline;
-    const apiLabel = api === true ? "API online" : api === false ? "API offline" : "Checking API…";
+    const live = typeof HelixAPI.hasLiveKey === "function" && HelixAPI.hasLiveKey();
+    const apiLabel = !live
+      ? "Add OpenRouter key for live AI"
+      : api === true
+        ? "API online · live AI ready"
+        : api === false
+          ? "Server offline · local fallback"
+          : "Checking API…";
     return `
       <section class="screen hero" aria-labelledby="hero-title">
         <div class="hero-tools">
-          <span class="api-pill ${api === true ? "ok" : api === false ? "bad" : ""}">${apiLabel}</span>
+          <span class="api-pill ${!live ? "bad" : api === true ? "ok" : api === false ? "bad" : ""}">${apiLabel}</span>
           <button type="button" class="btn btn-ghost btn-small" data-action="settings">AI settings</button>
         </div>
         <h1 class="hero-brand" id="hero-title">HelixBench</h1>
@@ -329,6 +365,7 @@
           Dynamic CompBio learning for pharma AI drug discovery —
           flashcards, quizzes, and microlearning on pLMs, folding, docking, BiTE, ADC, and Python code reading.
         </p>
+        ${live ? `<p class="settings-hint">Live AI enabled via OpenRouter · regenerations avoid recent repeats.</p>` : `<p class="hero-lead" style="margin-top:-0.25rem">For unique live Q&amp;A, open <button type="button" class="back-link" data-action="settings">AI settings</button> and paste your <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter</a> key.</p>`}
         <p class="levels-label">Choose a module</p>
         <div class="module-grid module-grid-3" role="list">
           <button type="button" class="module-card" role="listitem" data-action="module-learn">
@@ -391,7 +428,7 @@
               <span class="level-meta">${escapeHtml(t.category)}</span>
               <span class="level-name">${escapeHtml(t.name)}</span>
               <span class="level-desc">${escapeHtml(t.blurb)}</span>
-            </button>`).join("") : `<p class="hero-lead">Loading topics… If this stays empty, start the API server (<code>./start.sh</code>).</p>`}
+            </button>`).join("") : `<p class="hero-lead">No topics found. Hard-refresh to reload <code>js/micro_topics.js</code>.</p>`}
         </div>
       </section>
     `;
@@ -632,32 +669,56 @@
 
   function renderSettings() {
     const s = state.settingsDraft || HelixAPI.loadSettings();
+    const hasKey = Boolean(s.apiKey);
     return `
       <section class="screen settings-screen" aria-labelledby="settings-title">
         <button type="button" class="back-link" data-action="home">← Home</button>
-        <h1 class="section-title" id="settings-title">AI settings</h1>
-        <p class="hero-lead">Connect an OpenAI-compatible API for novel Q&amp;A. Mode <strong>auto</strong> uses AI when a key is present, otherwise the local dynamic generator.</p>
+        <h1 class="section-title" id="settings-title">AI settings (OpenRouter)</h1>
+        <p class="hero-lead">
+          Live Q&amp;A is generated through <strong>OpenRouter</strong>.
+          Get a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>,
+          paste it below, save, then click <em>Generate fresh</em> on any quiz or micro topic.
+        </p>
+        ${hasKey ? "" : `<div class="toast" role="status">No API key yet — local templates will repeat. Add an OpenRouter key for unique live questions.</div>`}
         <form class="settings-form" data-action="save-settings">
+          <label>Provider preset
+            <select name="provider" data-action-change="provider-preset">
+              <option value="openrouter" ${s.provider === "openrouter" || !s.provider ? "selected" : ""}>OpenRouter (recommended)</option>
+              <option value="openai" ${s.provider === "openai" ? "selected" : ""}>OpenAI</option>
+            </select>
+          </label>
           <label>Generation mode
             <select name="mode">
               <option value="auto" ${s.mode === "auto" ? "selected" : ""}>auto (AI if key, else local)</option>
-              <option value="ai" ${s.mode === "ai" ? "selected" : ""}>ai only</option>
-              <option value="local" ${s.mode === "local" ? "selected" : ""}>local dynamic only</option>
+              <option value="ai" ${s.mode === "ai" ? "selected" : ""}>AI only (OpenRouter/LLM)</option>
+              <option value="local" ${s.mode === "local" ? "selected" : ""}>local templates only</option>
             </select>
           </label>
-          <label>API key
-            <input type="password" name="apiKey" value="${escapeHtml(s.apiKey || "")}" placeholder="sk-…" autocomplete="off" />
+          <label>OpenRouter / LLM API key
+            <input type="password" name="apiKey" value="${escapeHtml(s.apiKey || "")}" placeholder="sk-or-v1-…" autocomplete="off" />
           </label>
           <label>Base URL
-            <input type="url" name="baseUrl" value="${escapeHtml(s.baseUrl || "")}" placeholder="https://api.openai.com/v1" />
+            <input type="url" name="baseUrl" value="${escapeHtml(s.baseUrl || "https://openrouter.ai/api/v1")}" placeholder="https://openrouter.ai/api/v1" />
           </label>
           <label>Model
-            <input type="text" name="model" value="${escapeHtml(s.model || "")}" placeholder="gpt-4o-mini" />
+            <input type="text" name="model" value="${escapeHtml(s.model || "openai/gpt-4o-mini")}" list="model-suggestions" placeholder="openai/gpt-4o-mini" />
+            <datalist id="model-suggestions">
+              <option value="openai/gpt-4o-mini"></option>
+              <option value="openai/gpt-4o"></option>
+              <option value="anthropic/claude-3.5-sonnet"></option>
+              <option value="google/gemini-2.0-flash-001"></option>
+              <option value="meta-llama/llama-3.3-70b-instruct"></option>
+              <option value="deepseek/deepseek-chat"></option>
+            </datalist>
           </label>
-          <p class="settings-hint">Works with OpenAI, Groq, OpenRouter, and other OpenAI-compatible endpoints. Key stays in your browser localStorage and is sent as <code>X-LLM-API-Key</code>.</p>
+          <p class="settings-hint">
+            Key stays in browser localStorage and is sent as <code>X-LLM-API-Key</code> to the HelixBench server,
+            which calls OpenRouter. Recent prompts are remembered so regenerations avoid repeats.
+          </p>
           <div class="results-actions">
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary">Save &amp; enable live AI</button>
             <button type="button" class="btn btn-ghost" data-action="clear-key">Clear key</button>
+            <button type="button" class="btn btn-ghost" data-action="clear-history">Clear question history</button>
           </div>
         </form>
       </section>`;
@@ -680,7 +741,7 @@
   app.addEventListener("click", async (e) => {
     const start = e.target.closest("[data-start]");
     if (start) {
-      await startDomain(start.getAttribute("data-start"), { regenerate: true });
+      await startDomain(start.getAttribute("data-start"), { regenerate: false });
       return;
     }
 
@@ -752,14 +813,25 @@
     e.preventDefault();
     const fd = new FormData(form);
     HelixAPI.saveSettings({
+      provider: String(fd.get("provider") || "openrouter"),
       mode: String(fd.get("mode") || "auto"),
       apiKey: String(fd.get("apiKey") || "").trim(),
-      baseUrl: String(fd.get("baseUrl") || "").trim(),
-      model: String(fd.get("model") || "").trim(),
+      baseUrl: String(fd.get("baseUrl") || "https://openrouter.ai/api/v1").trim(),
+      model: String(fd.get("model") || "openai/gpt-4o-mini").trim(),
     });
     state.settingsDraft = HelixAPI.loadSettings();
     setToast("Settings saved");
     state.screen = "home";
+    render();
+  });
+
+  app.addEventListener("change", (e) => {
+    const sel = e.target.closest("select[name='provider']");
+    if (!sel || state.screen !== "settings") return;
+    const typedKey = (app.querySelector("input[name='apiKey']") || {}).value;
+    const mode = (app.querySelector("select[name='mode']") || {}).value;
+    const next = HelixAPI.applyProviderPreset(sel.value);
+    state.settingsDraft = { ...next, apiKey: typedKey || next.apiKey, mode: mode || next.mode };
     render();
   });
 

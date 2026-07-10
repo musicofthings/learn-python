@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
+# Thin wrapper — real logic lives in start.py
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if [[ -f server/.env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source server/.env
-  set +a
+if command -v python3 >/dev/null 2>&1; then
+  PY=python3
+elif command -v python >/dev/null 2>&1; then
+  PY=python
+else
+  echo "ERROR: Python not found. Install Python 3, then run: python start.py"
+  exit 1
 fi
 
-export PATH="$HOME/.local/bin:$PATH"
-export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
-python3 -m pip install -q -r server/requirements.txt
-exec python3 -m uvicorn server.main:app --host 0.0.0.0 --port "${PORT:-8080}"
+if [[ ! -f start.py ]]; then
+  echo "ERROR: start.py not found in $(pwd)"
+  echo "Checkout the feature branch and pull latest:"
+  echo "  git fetch origin"
+  echo "  git checkout cursor/biopy-interview-quiz-2ad1"
+  echo "  git pull"
+  exit 1
+fi
+
+exec "$PY" start.py "$@"

@@ -6,3 +6,10 @@ server/.env
 .env
 *.log
 .DS_Store
+.cache/
+cloudflare/node_modules/
+cloudflare/.wrangler/
+cloudflare/public/css/
+cloudflare/public/js/
+cloudflare/public/index.html
+cloudflare/public/_headers

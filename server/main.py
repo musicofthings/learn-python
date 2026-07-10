@@ -27,6 +27,7 @@ from server.llm import (
     generate_quiz_ai,
 )
 from server.micro_topics import MICRO_TOPICS, get_topic
+from server import cache as content_cache
 
 load_dotenv()
 
@@ -58,6 +59,8 @@ class GenerateQuizRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
+    exclude: list[str] = Field(default_factory=list, description="Recent question texts to avoid")
+    refresh: bool = False
 
 
 class GenerateFlashRequest(BaseModel):
@@ -68,6 +71,8 @@ class GenerateFlashRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
+    exclude: list[str] = Field(default_factory=list)
+    refresh: bool = False
 
 
 class GenerateMicroRequest(BaseModel):
@@ -79,6 +84,8 @@ class GenerateMicroRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
+    exclude: list[str] = Field(default_factory=list)
+    refresh: bool = False
 
 
 def _resolve_key(api_key: Optional[str], header_key: Optional[str]) -> str:
@@ -99,9 +106,11 @@ def health() -> dict[str, Any]:
         "ok": True,
         "service": "helixbench",
         "llm_key_configured": bool(os.getenv("LLM_API_KEY")),
-        "default_model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
-        "default_base_url": os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+        "default_model": os.getenv("LLM_MODEL", "openai/gpt-4o-mini"),
+        "default_base_url": os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+        "provider": "openrouter",
         "micro_topics": len(MICRO_TOPICS),
+        "cache": content_cache.stats(),
     }
 
 
@@ -146,6 +155,20 @@ async def api_generate_quiz(
     x_llm_api_key: Optional[str] = Header(default=None),
 ) -> dict[str, Any]:
     key = _resolve_key(body.api_key, x_llm_api_key)
+    model = body.model or os.getenv("LLM_MODEL") or "openai/gpt-4o-mini"
+    use_ai = _want_ai(body.mode, key)
+    cache_key = content_cache.make_key(
+        "quiz",
+        domain=body.domain,
+        n=body.n,
+        mode="ai" if use_ai else "local",
+        model=model if use_ai else "local",
+    )
+    if not body.refresh:
+        cached = content_cache.get(cache_key)
+        if cached:
+            return cached
+
     seed = body.seed or uuid.uuid4().hex
     focus = DOMAIN_FOCUS.get(body.domain, body.domain)
     topic = get_topic(body.domain)
@@ -156,7 +179,7 @@ async def api_generate_quiz(
     questions: list[dict]
     warning = None
 
-    if _want_ai(body.mode, key):
+    if use_ai:
         if not key:
             raise HTTPException(400, "AI mode requires an API key (settings or LLM_API_KEY)")
         try:
@@ -166,7 +189,8 @@ async def api_generate_quiz(
                 n=body.n,
                 api_key=key,
                 base_url=body.base_url or os.getenv("LLM_BASE_URL"),
-                model=body.model or os.getenv("LLM_MODEL"),
+                model=model,
+                exclude=body.exclude,
             )
             source = "ai"
         except LLMError as exc:
@@ -178,7 +202,7 @@ async def api_generate_quiz(
     else:
         questions = generate_quiz_local(body.domain, n=body.n, seed=seed)
 
-    return {
+    payload = {
         "domain": body.domain,
         "source": source,
         "seed": seed,
@@ -186,6 +210,7 @@ async def api_generate_quiz(
         "questions": questions,
         "warning": warning,
     }
+    return content_cache.set(cache_key, payload)
 
 
 @app.post("/api/generate/flashcards")
@@ -194,6 +219,20 @@ async def api_generate_flashcards(
     x_llm_api_key: Optional[str] = Header(default=None),
 ) -> dict[str, Any]:
     key = _resolve_key(body.api_key, x_llm_api_key)
+    model = body.model or os.getenv("LLM_MODEL") or "openai/gpt-4o-mini"
+    use_ai = _want_ai(body.mode, key)
+    cache_key = content_cache.make_key(
+        "flash",
+        domain=body.domain,
+        n=body.n,
+        mode="ai" if use_ai else "local",
+        model=model if use_ai else "local",
+    )
+    if not body.refresh:
+        cached = content_cache.get(cache_key)
+        if cached:
+            return cached
+
     seed = body.seed or uuid.uuid4().hex
     focus = DOMAIN_FOCUS.get(body.domain, body.domain)
     topic = get_topic(body.domain)
@@ -202,7 +241,7 @@ async def api_generate_flashcards(
 
     source = "local"
     warning = None
-    if _want_ai(body.mode, key):
+    if use_ai:
         if not key:
             raise HTTPException(400, "AI mode requires an API key")
         try:
@@ -212,7 +251,8 @@ async def api_generate_flashcards(
                 n=body.n,
                 api_key=key,
                 base_url=body.base_url or os.getenv("LLM_BASE_URL"),
-                model=body.model or os.getenv("LLM_MODEL"),
+                model=model,
+                exclude=body.exclude,
             )
             source = "ai"
         except LLMError as exc:
@@ -224,7 +264,7 @@ async def api_generate_flashcards(
     else:
         cards = generate_flashcards_local(body.domain, n=body.n, seed=seed)
 
-    return {
+    payload = {
         "domain": body.domain,
         "source": source,
         "seed": seed,
@@ -232,6 +272,7 @@ async def api_generate_flashcards(
         "cards": cards,
         "warning": warning,
     }
+    return content_cache.set(cache_key, payload)
 
 
 @app.post("/api/generate/micro")
@@ -244,11 +285,26 @@ async def api_generate_micro(
         raise HTTPException(404, f"Unknown topic {body.topic_id}")
 
     key = _resolve_key(body.api_key, x_llm_api_key)
+    model = body.model or os.getenv("LLM_MODEL") or "openai/gpt-4o-mini"
+    use_ai = _want_ai(body.mode, key)
+    cache_key = content_cache.make_key(
+        "micro",
+        topic_id=body.topic_id,
+        n_quiz=body.n_quiz,
+        n_cards=body.n_cards,
+        mode="ai" if use_ai else "local",
+        model=model if use_ai else "local",
+    )
+    if not body.refresh:
+        cached = content_cache.get(cache_key)
+        if cached:
+            return cached
+
     seed = body.seed or uuid.uuid4().hex
     source = "local"
     warning = None
 
-    if _want_ai(body.mode, key):
+    if use_ai:
         if not key:
             raise HTTPException(400, "AI mode requires an API key")
         try:
@@ -259,7 +315,8 @@ async def api_generate_micro(
                 n_cards=body.n_cards,
                 api_key=key,
                 base_url=body.base_url or os.getenv("LLM_BASE_URL"),
-                model=body.model or os.getenv("LLM_MODEL"),
+                model=model,
+                exclude=body.exclude,
             )
             source = "ai"
         except LLMError as exc:
@@ -275,7 +332,7 @@ async def api_generate_micro(
             body.topic_id, n_quiz=body.n_quiz, n_cards=body.n_cards, seed=seed
         )
 
-    return {
+    payload = {
         "topic_id": body.topic_id,
         "topic": {
             "id": topic["id"],
@@ -292,6 +349,48 @@ async def api_generate_micro(
         "quiz": practice.get("quiz", []),
         "flashcards": practice.get("flashcards", []),
         "warning": warning,
+    }
+    return content_cache.set(cache_key, payload)
+
+
+
+@app.get("/api/cache/stats")
+def cache_stats() -> dict[str, Any]:
+    return content_cache.stats()
+
+
+@app.post("/api/cache/clear")
+def cache_clear() -> dict[str, Any]:
+    return content_cache.clear()
+
+
+@app.get("/api/providers")
+def providers() -> dict[str, Any]:
+    return {
+        "default": "openrouter",
+        "providers": [
+            {
+                "id": "openrouter",
+                "name": "OpenRouter",
+                "base_url": "https://openrouter.ai/api/v1",
+                "models": [
+                    "openai/gpt-4o-mini",
+                    "openai/gpt-4o",
+                    "anthropic/claude-3.5-sonnet",
+                    "google/gemini-2.0-flash-001",
+                    "meta-llama/llama-3.3-70b-instruct",
+                    "deepseek/deepseek-chat",
+                ],
+                "key_url": "https://openrouter.ai/keys",
+            },
+            {
+                "id": "openai",
+                "name": "OpenAI",
+                "base_url": "https://api.openai.com/v1",
+                "models": ["gpt-4o-mini", "gpt-4o"],
+                "key_url": "https://platform.openai.com/api-keys",
+            },
+        ],
     }
 
 
