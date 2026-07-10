@@ -4,12 +4,12 @@
 
   const state = {
     screen: "home",
-    levelId: null,
+    domainId: null,
     questions: [],
     index: 0,
     selected: null,
     locked: false,
-    answers: [], // { questionIndex, choice, correct }
+    answers: [],
   };
 
   function shuffle(arr) {
@@ -21,9 +21,19 @@
     return a;
   }
 
-  function pickSession(levelId) {
-    const pool = QUESTIONS[levelId] || [];
-    return shuffle(pool).slice(0, SESSION_SIZE);
+  /** Shuffle answer choices and remap the correct index. */
+  function prepareQuestion(q) {
+    const order = shuffle(q.choices.map((_, i) => i));
+    return {
+      ...q,
+      choices: order.map((i) => q.choices[i]),
+      answer: order.indexOf(q.answer),
+    };
+  }
+
+  function pickSession(domainId) {
+    const pool = QUESTIONS[domainId] || [];
+    return shuffle(pool).slice(0, SESSION_SIZE).map(prepareQuestion);
   }
 
   function letters(i) {
@@ -40,7 +50,7 @@
 
   function goHome() {
     state.screen = "home";
-    state.levelId = null;
+    state.domainId = null;
     state.questions = [];
     state.index = 0;
     state.selected = null;
@@ -49,10 +59,10 @@
     render();
   }
 
-  function startLevel(levelId) {
+  function startDomain(domainId) {
     state.screen = "quiz";
-    state.levelId = levelId;
-    state.questions = pickSession(levelId);
+    state.domainId = domainId;
+    state.questions = pickSession(domainId);
     state.index = 0;
     state.selected = null;
     state.locked = false;
@@ -87,8 +97,8 @@
     render();
   }
 
-  function levelById(id) {
-    return LEVELS.find((l) => l.id === id);
+  function domainById(id) {
+    return DOMAINS.find((d) => d.id === id);
   }
 
   function renderHome() {
@@ -97,19 +107,19 @@
         <h1 class="hero-brand" id="hero-title">HelixBench</h1>
         <p class="hero-lead">
           Interactive BioPython quiz for pharma computational biology —
-          sequences, structures, RDKit, assay pipelines, and molecular ML for AI drug discovery interviews.
+          genomics, chemistry, molecular structure, biologics, docking, and clinical translation for AI drug discovery interviews.
         </p>
         <div class="hero-cta">
-          <button type="button" class="btn btn-primary" data-action="scroll-levels">Choose your level</button>
+          <button type="button" class="btn btn-primary" data-action="scroll-domains">Choose a domain</button>
         </div>
-        <p class="levels-label" id="levels">Session · 10 multiple-choice · instant feedback</p>
-        <div class="level-grid" role="list">
-          ${LEVELS.map(
-            (level) => `
-            <button type="button" class="level-option" role="listitem" data-start="${level.id}">
-              <span class="level-name">${escapeHtml(level.name)}</span>
-              <span class="level-meta">${escapeHtml(level.meta)}</span>
-              <span class="level-desc">${escapeHtml(level.desc)}</span>
+        <p class="levels-label" id="domains">Session · 10 multiple-choice · shuffled each run · instant feedback</p>
+        <div class="level-grid domain-grid" role="list">
+          ${DOMAINS.map(
+            (domain) => `
+            <button type="button" class="level-option" role="listitem" data-start="${domain.id}">
+              <span class="level-name">${escapeHtml(domain.name)}</span>
+              <span class="level-meta">${escapeHtml(domain.meta)}</span>
+              <span class="level-desc">${escapeHtml(domain.desc)}</span>
             </button>`
           ).join("")}
         </div>
@@ -118,7 +128,7 @@
   }
 
   function renderQuiz() {
-    const level = levelById(state.levelId);
+    const domain = domainById(state.domainId);
     const q = state.questions[state.index];
     const n = state.questions.length;
     const step = state.index + 1;
@@ -159,7 +169,7 @@
     return `
       <section class="screen quiz" aria-labelledby="q-title">
         <div class="quiz-top">
-          <span class="quiz-level">${escapeHtml(level.name)}</span>
+          <span class="quiz-level">${escapeHtml(domain.name)}</span>
           <span class="quiz-progress-text">Question ${step} of ${n}</span>
         </div>
         <div class="progress-track" aria-hidden="true">
@@ -182,16 +192,16 @@
   }
 
   function renderResults() {
-    const level = levelById(state.levelId);
+    const domain = domainById(state.domainId);
     const total = state.answers.length;
     const score = state.answers.filter((a) => a.correct).length;
     const pct = total ? Math.round((score / total) * 100) : 0;
 
     let verdict;
-    if (pct >= 90) verdict = "Interview-ready depth on this track — dig into edge cases next.";
+    if (pct >= 90) verdict = "Interview-ready depth in this domain — dig into edge cases next.";
     else if (pct >= 70) verdict = "Solid working knowledge. Review the misses and re-run the session.";
     else if (pct >= 50) verdict = "Core gaps to close before a CompBio onsite — focus on the red items below.";
-    else verdict = "Start with Foundation workflows, then climb. Re-quiz after a focused pass.";
+    else verdict = "Revisit this domain’s fundamentals, then re-quiz after a focused pass.";
 
     const rows = state.answers
       .map(
@@ -211,12 +221,12 @@
         <div class="results-score-ring" style="--pct:${pct}">
           <div class="results-score-inner">${score}/${total}</div>
         </div>
-        <h2 id="results-title">${escapeHtml(level.name)} complete</h2>
+        <h2 id="results-title">${escapeHtml(domain.name)} complete</h2>
         <p class="results-sub">${pct}% · ${escapeHtml(verdict)}</p>
         <div class="results-breakdown">${rows}</div>
         <div class="results-actions">
-          <button type="button" class="btn btn-primary" data-action="retry">Retry ${escapeHtml(level.name)}</button>
-          <button type="button" class="btn btn-ghost" data-action="home">Choose another level</button>
+          <button type="button" class="btn btn-primary" data-action="retry">Retry ${escapeHtml(domain.name)}</button>
+          <button type="button" class="btn btn-ghost" data-action="home">Choose another domain</button>
         </div>
       </section>
     `;
@@ -231,7 +241,7 @@
   app.addEventListener("click", (e) => {
     const start = e.target.closest("[data-start]");
     if (start) {
-      startLevel(start.getAttribute("data-start"));
+      startDomain(start.getAttribute("data-start"));
       return;
     }
 
@@ -245,12 +255,12 @@
     if (!actionBtn) return;
     const action = actionBtn.getAttribute("data-action");
 
-    if (action === "scroll-levels") {
-      document.getElementById("levels")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (action === "scroll-domains") {
+      document.getElementById("domains")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } else if (action === "next") {
       nextQuestion();
     } else if (action === "retry") {
-      startLevel(state.levelId);
+      startDomain(state.domainId);
     } else if (action === "home") {
       goHome();
     }
