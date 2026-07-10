@@ -1,10 +1,15 @@
 # HelixBench
 
-Interactive BioPython / computational biology quiz for **pharma AI drug discovery** interview prep.
+Interactive BioPython / computational biology **learning + quiz** app for pharma AI drug discovery interview prep.
+
+## Modules
+
+1. **Flashcards (Learning)** — study prompts/answers by domain; deck is shuffled every session
+2. **Quiz (Assessment)** — 10 multiple-choice questions; questions and choices shuffled every run
+
+Topics are matched one-to-one between Learning and Quiz within each domain.
 
 ## Domains
-
-Sessions are organized by scientific domain (not generic Python trivia):
 
 - **Genomics** — SeqIO, Entrez, MSA, CRISPR oligos, expression QC
 - **Chemistry** — SMILES, RDKit, fingerprints, ADMET, QSAR, generative chemistry
@@ -13,26 +18,26 @@ Sessions are organized by scientific domain (not generic Python trivia):
 - **Docking** — poses, IFPs, conformers, enrichment, covalent setup
 - **Clinical** — assays, pIC50, scaffold splits, PK translation, biomarkers, uncertainty
 
-## How to play
+## How to use
 
-1. Open the app and pick a domain.
-2. Each session has **10 multiple-choice** questions sampled from that domain’s bank.
-3. **Question order and answer choices are shuffled** every run.
-4. Answers reveal **immediately** with **green / red** feedback and a short explanation.
-5. Finish with a score breakdown; retry or switch domains anytime.
+1. Open the app and choose **Flashcards** or **Quiz**.
+2. Pick a domain category.
+3. Flashcards: click to flip; navigate Previous / Next; **Shuffle deck** anytime.
+4. Quiz: answer for instant **green / red** feedback; finish with a score breakdown.
+5. Jump between study and quiz for the same domain from the end screens.
 
 ## Run locally
-
-No build step. From the repo root:
 
 ```bash
 python3 -m http.server 8080
 ```
 
-Then open [http://localhost:8080](http://localhost:8080).
-
-Or open `index.html` directly in a browser.
+Open [http://localhost:8080](http://localhost:8080).
 
 ## Stack
 
-Static HTML, CSS, and vanilla JavaScript (`js/questions.js`, `js/app.js`).
+Static HTML/CSS and vanilla JS:
+
+- `js/questions.js` — domains + quiz banks
+- `js/flashcards.js` — learning cards (same topics)
+- `js/app.js` — UI and session logic
