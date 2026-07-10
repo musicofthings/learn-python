@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HelixBench — CompBio Python Interview Quiz</title>
+  <meta name="description" content="Interactive BioPython and computational biology quiz for pharma AI drug discovery interviews." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <svg class="helix-pattern" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="strand" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="rgba(45, 158, 140, 0.18)" />
+          <stop offset="100%" stop-color="rgba(20, 90, 84, 0.05)" />
+        </linearGradient>
+      </defs>
+      <path d="M80 40 C180 120, 220 200, 120 280 C20 360, 60 440, 180 520" fill="none" stroke="url(#strand)" stroke-width="2" />
+      <path d="M200 40 C100 120, 60 200, 160 280 C260 360, 220 440, 100 520" fill="none" stroke="url(#strand)" stroke-width="2" />
+      <g fill="rgba(45, 158, 140, 0.22)">
+        <circle cx="150" cy="100" r="4" /><circle cx="130" cy="160" r="3" />
+        <circle cx="140" cy="220" r="4" /><circle cx="150" cy="280" r="3" />
+        <circle cx="140" cy="340" r="4" /><circle cx="130" cy="400" r="3" />
+        <circle cx="145" cy="460" r="4" />
+      </g>
+    </svg>
+  </div>
+
+  <header class="site-header">
+    <a class="brand" href="#" id="brand-home" aria-label="HelixBench home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">HelixBench</span>
+    </a>
+    <p class="brand-tag">Pharma CompBio · AI Drug Discovery</p>
+  </header>
+
+  <main id="app" class="app">
+    <!-- screens injected by app.js -->
+  </main>
+
+  <footer class="site-footer">
+    <p>Interview prep for computational biology workflows — BioPython, RDKit, assay pipelines &amp; molecular ML.</p>
+  </footer>
+
+  <script src="js/questions.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
